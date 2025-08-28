@@ -1,14 +1,19 @@
-import { useState } from 'react'
-import Hero from './components/Hero'
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Home from "./Home";
+import AuthPage from "./AuthPage";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <main className='relative min-h-screen w-screen overflow-x-hidden'>
-      <Hero />
-    </main>
-  )
+    <Router>
+      <Routes>
+        {/* Landing Page */}
+        <Route path="/" element={<Home />} />
+
+        {/* Authentication Page */}
+        <Route path="/auth" element={<AuthPage />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
