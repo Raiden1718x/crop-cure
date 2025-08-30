@@ -6,6 +6,7 @@ const CropAnalysis = () => {
   const [selectedSeason, setSelectedSeason] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
   const cropTypes = [
@@ -20,32 +21,64 @@ const CropAnalysis = () => {
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File size too large. Please upload an image under 5MB.');
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e) => {
         setSelectedImage(e.target.result);
+        setError(null); // Clear any previous errors
+      };
+      reader.onerror = () => {
+        setError('Failed to read the image file. Please try another image.');
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!selectedImage || !selectedCrop || !selectedSeason) {
-      alert('Please complete all fields before analyzing');
+      setError("Please upload an image, select crop type, and season first.");
       return;
     }
 
     setIsAnalyzing(true);
-    
-    // Simulate analysis process
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisResult({
-        disease: 'Leaf Rust',
-        confidence: '92%',
-        description: 'Leaf rust is a common fungal disease that affects many crops. It appears as orange-brown pustules on leaves.',
-        treatment: 'Apply fungicide containing triazoles. Remove infected leaves and ensure proper spacing for air circulation.'
+    setAnalysisResult(null);
+    setError(null);
+
+    try {
+      // Create form data to send to the backend
+      const formData = new FormData();
+      
+      // Convert data URL to blob for proper file upload
+      const blob = await fetch(selectedImage).then(r => r.blob());
+      formData.append('image', blob, 'crop_image.jpg');
+      formData.append('crop', selectedCrop);
+      formData.append('season', selectedSeason);
+
+      const response = await fetch("http://localhost:5000/analyze", {
+        method: "POST",
+        body: formData,
       });
-    }, 3000);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to analyze image");
+      }
+
+      // Set the analysis result from the backend
+      setAnalysisResult(data);
+      
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setError(error.message || "Error analyzing crop. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleReset = () => {
@@ -53,6 +86,7 @@ const CropAnalysis = () => {
     setSelectedCrop('');
     setSelectedSeason('');
     setAnalysisResult(null);
+    setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -87,6 +121,13 @@ const CropAnalysis = () => {
             Upload an image of your crop, select the crop type and season for AI-powered disease detection and treatment recommendations.
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <p>{error}</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           {/* Left side - Upload and form */}
@@ -244,7 +285,15 @@ const CropAnalysis = () => {
                   <h4 className="font-semibold text-green-800 mb-2">Detection Result</h4>
                   <p className="text-green-700">
                     <span className="font-medium">Disease: </span>
-                    {analysisResult.disease} ({analysisResult.confidence} confidence)
+                    {analysisResult.disease_name} ({(analysisResult.confidence * 100).toFixed(2)}% confidence)
+                  </p>
+                  <p className="text-green-700 mt-1">
+                    <span className="font-medium">Crop Type: </span>
+                    {analysisResult.crop_type || 'Not specified'}
+                  </p>
+                  <p className="text-green-700 mt-1">
+                    <span className="font-medium">Season: </span>
+                    {analysisResult.season || 'Not specified'}
                   </p>
                 </div>
                 
@@ -255,7 +304,11 @@ const CropAnalysis = () => {
                 
                 <div>
                   <h4 className="font-semibold text-green-800 mb-2">Recommended Treatment</h4>
-                  <p className="text-green-700">{analysisResult.treatment}</p>
+                  <ul className="list-disc list-inside text-green-700 space-y-2 pl-4">
+                    {analysisResult.treatment && analysisResult.treatment.map((solution, index) => (
+                      <li key={index}>{solution}</li>
+                    ))}
+                  </ul>
                 </div>
                 
                 <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -279,6 +332,21 @@ const CropAnalysis = () => {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0px); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
     </section>
   );
 };
